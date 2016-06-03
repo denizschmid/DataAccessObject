@@ -1,329 +1,315 @@
 <?php
 
+	namespace Dansnet;
+	
+	/**
+	 * DataAccessObject bietet eine PDO-Datenbankschnittstelle, die nicht nur einfache
+	 * Queries ausführen kann, sondern erweitert diese mit komplexeren Such- und
+	 * Manipulationsfunktionen.
+	 */
     class DataAccessObject extends DatabaseConnector {
 
-	// Tabellennamen des Objekts in der Datenbank
-	private $table;
-	// Die Spalte des Primary-Keys der Tabelle
-	private $columnId = "id";
-	// Rückgabe der Abfrage, Standard ist assoziatives Array
-	private $fetch = PDO::FETCH_ASSOC;
+		/**
+		 * Tabellennamen des Objekts in der Datenbank
+		 * @var string
+		 */
+		private $table;
 
-	/***********************************************************************
-	 * __construct ()
-	 *
-	 * Konstruktor mit Basiseinstellungen
-	 *
-	 * @param string  $table		Name der Tabelle.
-	 * @param boolean $printSql		Gibt jedes auszuführende SQL-Statement zu 
-	 *								Debug-Zwecken aus, wenn TRUE
-	 *								(SQL-Statements werden ausgegeben mittels:
-	 *								<div class='PrintSql'></div>)
-	 * @param string $tablePrefix	Zu verwendendes Tabellenpräfix (werden 
-	 *								in einer Datenbank mehrere gleiche Tabellen 
-	 *								mit unterschiedlichem Präfix verwendet, 
-	 *								wie zum Beispiel "user1_counter", 
-	 *								"user2_counter" etc., so kann das jeweilige		
-	 *								Präfix hier angegeben werden. Die SQL-
-	 *								Abfragen können anschließend zum Beispiel 
-	 *								im allgemeinen Format 'SELECT * FROM #_counter' 
-	 *								verfasst werden, um auf die jeweils richtige 
-	 *								Tabelle zuzugreifen)
-	 *								In diesem Fall wäre $TablePrefix='user1_' zu setzen.
-	 **********************************************************************/
-	public function __construct( $table, $printSql = FALSE, $tablePrefix = "" ) {
-		parent::__construct($printSql, $tablePrefix);
-		$this->table = $table;
-	}
+		/**
+		 * Die Spalte des Primary-Keys der Tabelle
+		 * @var string 
+		 */
+		private $columnId = "id";
 
-	/***********************************************************************
-	 * __count ()
-	 *
-	 * Ermittelt die Anzahl an Datensätzen in der Tabelle.
-	 *
-	 * @return integer|FALSE
-	 **********************************************************************/
-	public function count() {
-		return $this->SqlGetFirstLine("SELECT COUNT(*) AS size FROM $this->table", $this->fetch)["size"];
-	}
+		/**
+		 * Rückgabe der Abfrage, Standard ist assoziatives Array
+		 * @var integer 
+		 */
+		private $fetch = \PDO::FETCH_ASSOC;
 
-	/***********************************************************************
-	 * __exists ()
-	 *
-	 * Prüft, ob ein Datensatz existiert.
-	 *
-	 * @param array $data	Die Daten, nach denen geprüft werden soll.
-	 * @return boolean|FALSE
-	 **********************************************************************/
-	public function exists( array $data ) {
-	    $result = $this->find($data);
-	    if( $result === FALSE ) {
-		    return FALSE;
-	    }
-	    return sizeof($result) > 0;
-	}
-
-	/***********************************************************************
-	 * __usUnique ()
-	 *
-	 * Prüft, ob ein Datensatz existiert und genau einmal vorkommt.
-	 *
-	 * @param array $data	Die Daten, nach denen geprüft werden soll.
-	 * @return boolean|FALSE
-	 **********************************************************************/
-	public function isUnique( $data ) {
-	    $result = $this->find($data);
-	    if( $result === FALSE ) {
-		return FALSE;
-	    }
-	    return sizeof($result) == 1;
-	}
-
-	/***********************************************************************
-	* __getAll ()
-	*
-	* Ermittelt alle Datensätze aus der Tabelle.
-	*
-	* @param string  $order	Die Sortierung der Tabelle.
-	* @param integer $limit	Anzahl der Datensätze, die ermittelt werden 
-	*							sollen
-	* @return array|FALSE
-	**********************************************************************/
-	public function getAll( $order="", $limit=-1 ) {
-	    return $this->findPage([], $order, $limit, 0);
-	}
-
-	/***********************************************************************
-	 * __find ()
-	 *
-	 * Sucht Datensätze nach Suchkriterien.
-	 *
-	 * @param array	  $data		Die Daten, nach denen gefiltert werden soll.
-	 * @param string  $order	Die Sortierung der Tabelle.
-	 * @param integer $limit	Anzahl der Datensätze, die ermittelt werden 
-	 *							sollen
-	 * @return boolean|FALSE
-	 **********************************************************************/
-	public function find( $data, $order="", $limit=-1 ) {
-	    return $this->findPage($data, $order, $limit, 0);
-	}
-
-	/***********************************************************************
-	 * __findPage ()
-	 *
-	 * Ermittelt eine bestimmte Anzahl an Datensätzen anhand des Filters aus 
-	 * der Tabelle ab einem Startpunkt. Simuliert eine Art Paging-Funktion.
-	 *
-	 * @param array	  $data		Die Daten, nach denen gefiltert werden soll.
-	 * @param string  $order	Die Sortierung der Tabelle.
-	 * @param integer $limit	Anzahl der Datensätze, die ermittelt werden 
-	 *							sollen
-	 * @param integer $start	Startposition, ab da die Datensätze ermittelt 
-	 *							werden
-	 * @return array|FALSE
-	 **********************************************************************/
-	public function findPage( $data, $order="", $limit=-1, $start=0 ) {
-
-	    $whereString = "";
-	    foreach( array_keys($data) as $column ) {
-		$whereString .= ( empty($whereString) ? "WHERE " : " AND " )."$column=:$column";
-	    }
-
-	    $orderString = "";
-	    if( !empty($order) ) {
-		$orderString = "ORDER BY $order";
-	    }
-
-	    $query = "SELECT * FROM $this->table $whereString $orderString LIMIT $limit OFFSET $start";
-	    $this->SqlPrepareStatement($query, $this->fetch);
-
-	    foreach( $data as $column=>$value ) {
-		$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
-	    }
-
-		return $this->SqlGetPreparedLines();
-	}
-
-	/***********************************************************************
-	 * __getById ()
-	 *
-	 * Ermittelt einen Datensatz anhand seiner ID.
-	 *
-	 * @param integer $id	ID des Datensatzes
-	 * @return array|FALSE
-	 **********************************************************************/
-	public function getById( $id ) {
-	    $this->SqlPrepareStatement("SELECT * FROM $this->table WHERE id=?", $this->fetch);
-	    return $this->SqlGetPreparedLines($id);
-	}
-
-	/***********************************************************************
-	 * __save ()
-	 *
-	 * Legt einen Datensatz neu an oder aktualisiert einen Datensatz. Ist im
-	 * übergebenen Daten-Array eine ID enthalten, dessen Spaltenname über die
-	 * Variable $columnId definiert ist, so wird der Datensatz mit dieser ID
-	 * aktualisiert. Ansonsten wird dieser neu angelegt.
-	 *
-	 * @param array $data	Die Daten, die gespeichert werden sollen.
-	 * @return array|FALSE
-	 **********************************************************************/
-	public function save( array $data ) {
-	    if(array_key_exists($this->columnId, $data) ) {
-		$result = $this->getById($data[$this->columnId]);
-		if( $result === FALSE ) {
-		    return FALSE;
-		} 
-		return $this->update($data);
-	    } else {
-		return $this->create($data);
-	    }
-	}
-
-	/***********************************************************************
-	 * __create
-	 *
-	 * Legt einen neuen Datensatz an.
-	 *
-	 * @param array $data	Die Daten des Datensatzes, der angelegt werden soll.
-	 * @return array|FALSE  Die Daten des angelegten Datensatzes oder FALSE 
-	 *                      im Fehlerfall
-	 **********************************************************************/
-	public function create( $data ) {
-
-	    $columnString = "";
-	    $valueString = "";
-	    foreach( array_keys($data) as $column ) {
-		$columnString .= ( empty($columnString) ? $column    : ", $column" );
-		$valueString  .= ( empty($valueString)  ? ":$column" : ", :$column" );
-	    }
-	    $query = "INSERT INTO $this->table ($columnString) VALUES ($valueString)";
-	    $this->SqlPrepareStatement($query, $this->fetch);
-
-	    foreach( $data as $column=>$value ) {
-		$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
-	    }
-
-	    if( $this->SqlGetPreparedLines() !== FALSE ) {
-		return $this->getById($this->SqlGetLastInsertId());
-	    } else {
-		return FALSE;
-	    }
-	}
-
-	/***********************************************************************
-	 * __update ()
-	 *
-	 * Aktualisiert einen Datensatz anhand der ID.
-	 *
-	 * @param array $data	Die Daten des Datensatzes, der aktualisiert werden
-	 *						soll, samt ID.
-	 * @return array|FALSE  Die Daten des angelegten Datensatzes oder FALSE 
-	 *                      im Fehlerfall
-	 **********************************************************************/
-	public function update( $data ) {
-
-	    if( empty($data[$this->columnId]) ) {
-		return FALSE;
-	    }
-
-	    $updateString = "";
-	    foreach( $data as $column=>$value ) {
-		if( $column === $this->columnId ) continue;
-		$updateString .= ( empty($updateString) ? "" : ", ")."$column=:$column";
-	    } 
-	    $query = "UPDATE $this->table SET $updateString WHERE $this->columnId=:$this->columnId";
-	    $this->SqlPrepareStatement($query, $this->fetch);
-
-	    foreach( $data as $column=>$value ) {
-		$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
-	    }
-
-	    if( $this->SqlGetPreparedLines() !== FALSE ) {
-		return $this->getById($data[$this->columnId]);
-	    } else {
-		return FALSE;
-	    }
-	}
-
-	/***********************************************************************
-	 * __delete ()
-	 *
-	 * Löscht einen Datensatz anhand seiner ID. Wir ein leerer Wert als ID 
-	 * übergeben, wird als Sicherheit FALSE zurückgegeben, da sonst die ge-
-	 * samte Tabelle gelöscht würde.
-	 *
-	 * @param array $id		ID des Datensatzes, der gelöscht werden soll.
-	 * @return array|FALSE
-	 **********************************************************************/
-	public function delete( $id ) {
-	    if( empty($id) || !$this->isUnique(["$this->columnId"=>$id]) ) {
-		return FALSE;
-	    }
-	    $query = "DELETE FROM $this->table WHERE $this->columnId=?";
-	    $this->SqlPrepareStatement($query, $this->fetch);
-	    if( $this->SqlGetPreparedLines($id) !== FALSE ) {
-		if( $this->getById($id) === NULL ) {
-		    return TRUE;
+		/**
+		 * Konstruktor mit Basiseinstellungen
+		 *
+		 * @param string $table	Name der Tabelle.
+		 * @param boolean $printSql	Gibt jedes auszuführende SQL-Statement zu 
+		 *							Debug-Zwecken aus, wenn TRUE
+		 *							(SQL-Statements werden ausgegeben mittels:
+		 *							<div class='PrintSql'></div>)
+		 * @param string $tablePrefix Zu verwendendes Tabellenpräfix (werden 
+		 *							  in einer Datenbank mehrere gleiche Tabellen 
+		 *							  mit unterschiedlichem Präfix verwendet, 
+		 *							  wie zum Beispiel "user1_counter", 
+		 *							  "user2_counter" etc., so kann das jeweilige		
+		 *							  Präfix hier angegeben werden. Die SQL-
+		 *							  Abfragen können anschließend zum Beispiel 
+		 *							  im allgemeinen Format 'SELECT * FROM #_counter' 
+		 *							  verfasst werden, um auf die jeweils richtige 
+		 *							  Tabelle zuzugreifen)
+		 *							  In diesem Fall wäre $TablePrefix='user1_' zu setzen.
+		 */
+		public function __construct( $table, $printSql = FALSE, $tablePrefix = "" ) {
+			parent::__construct($printSql, $tablePrefix);
+			$this->table = $table;
 		}
-	    }
-	    return FALSE;
-	}
 
-	/***********************************************************************
-	 * __deleteAll ()
-	 *
-	 * Löscht alle Datensätze aus der Tabelle und setzt alle Sequenzen aus 
-	 * dieser zurück. Das bedeuted, dass z.B. AUTO-INCREMENT-Spalten wieder
-	 * mit dem Index 1 beginnen.
-	 *
-	 * @return boolean
-	 **********************************************************************/
-	public function deleteAll() {
-	    if( $this->SqlExecute("DELETE FROM $this->table") === FALSE ) {
-		return FALSE;
-	    }
-	    return $this->removeSequences();
-	}
+		/**
+		 * Ermittelt die Anzahl an Datensätzen in der Tabelle.
+		 *
+		 * @return integer|FALSE
+		 */
+		public function count() {
+			return $this->SqlGetFirstLine("SELECT COUNT(*) AS size FROM $this->table", $this->fetch)["size"];
+		}
 
-	/***********************************************************************
-	 * __setColumnId ()
-	 *
-	 * Setzt den Namen der ID-Spalte aus der Tabelle. Diese wird für die 
-	 * Abfragen aus dieser Klasse verwendet. Standard ist hier "id".
-	 *
-	 * @param string $column	Name der ID-Spalte aus der Tabelle.
-	 * @return array|FALSE
-	 **********************************************************************/
-	public function setColumnId( $column ) {
-	    $this->columnId = $column;
-	}
+		/**
+		 * Prüft, ob ein Datensatz existiert.
+		 *
+		 * @param array $data Die Daten, nach denen geprüft werden soll.
+		 * @return boolean|FALSE
+		 */
+		public function exists( array $data ) {
+			$result = $this->find($data);
+			if( $result === FALSE ) {
+				return FALSE;
+			}
+			return sizeof($result) > 0;
+		}
 
-	/***********************************************************************
-	 * __removeSequences ()
-	 *
-	 * Setzt alle Sequenzen der Tabelle zurück. Dadurch beginnt der Index der
-	 * AUTO-INCREMENT-Sequenzen wieder bei 1.
-	 *
-	 * @return array|FALSE
-	 **********************************************************************/
-	private function removeSequences() {
-	    $query = "DELETE FROM sqlite_sequence WHERE name='$this->table'";
-	    return $this->SqlExecute($query);
-	}
+		/**
+		 * Prüft, ob ein Datensatz existiert und genau einmal vorkommt.
+		 *
+		 * @param array $data Die Daten, nach denen geprüft werden soll.
+		 * @return boolean|FALSE
+		 */
+		public function isUnique( $data ) {
+			$result = $this->find($data);
+			if( $result === FALSE ) {
+			return FALSE;
+			}
+			return sizeof($result) == 1;
+		}
 
-	/***********************************************************************
-	 * __getPDOType ()
-	 *
-	 * Ermittelt den PDO-Datentyp einer Variable. Dieser Datentyp ist wichtig
-	 * beim Einsatz von Prepared-Statements.
-	 *
-	 * @param mixed $param	Parameter, dessen Datentyp ermittelt werdens soll.
-	 * @return array|FALSE
-	 **********************************************************************/
-	private function getPDOType( $param ) {
-	    return is_integer($param) ? PDO::PARAM_INT : PDO::PARAM_STR;
-	}
+		/**
+		* Ermittelt alle Datensätze aus der Tabelle.
+		*
+		* @param string $order Die Sortierung der Tabelle.
+		* @param integer $limit	Anzahl der Datensätze, die ermittelt werden 
+		*						sollen
+		* @return array|FALSE
+		*/
+		public function getAll( $order="", $limit=-1 ) {
+			return $this->findPage([], $order, $limit, 0);
+		}
+
+		/**
+		 * Sucht Datensätze nach Suchkriterien.
+		 *
+		 * @param array	$data Die Daten, nach denen gefiltert werden soll.
+		 * @param string $order	Die Sortierung der Tabelle.
+		 * @param integer $limit Anzahl der Datensätze, die ermittelt werden 
+		 *						 sollen
+		 * @return boolean|FALSE
+		 */
+		public function find( $data, $order="", $limit=-1 ) {
+			return $this->findPage($data, $order, $limit, 0);
+		}
+
+		/**
+		 * Ermittelt eine bestimmte Anzahl an Datensätzen anhand des Filters aus 
+		 * der Tabelle ab einem Startpunkt. Simuliert eine Art Paging-Funktion.
+		 *
+		 * @param array	$data Die Daten, nach denen gefiltert werden soll.
+		 * @param string $order	Die Sortierung der Tabelle.
+		 * @param integer $limit Anzahl der Datensätze, die ermittelt werden 
+		 *						 sollen
+		 * @param integer $start Startposition, ab da die Datensätze ermittelt 
+		 *						 werden
+		 * @return array|FALSE
+		 */
+		public function findPage( $data, $order="", $limit=-1, $start=0 ) {
+
+			$whereString = "";
+			foreach( array_keys($data) as $column ) {
+			$whereString .= ( empty($whereString) ? "WHERE " : " AND " )."$column=:$column";
+			}
+
+			$orderString = "";
+			if( !empty($order) ) {
+			$orderString = "ORDER BY $order";
+			}
+
+			$query = "SELECT * FROM $this->table $whereString $orderString LIMIT $limit OFFSET $start";
+			$this->SqlPrepareStatement($query, $this->fetch);
+
+			foreach( $data as $column=>$value ) {
+			$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
+			}
+
+			return $this->SqlGetPreparedLines();
+		}
+
+		/**
+		 * Ermittelt einen Datensatz anhand seiner ID.
+		 *
+		 * @param integer $id ID des Datensatzes
+		 * @return array|FALSE
+		 */
+		public function getById( $id ) {
+			$this->SqlPrepareStatement("SELECT * FROM $this->table WHERE id=?", $this->fetch);
+			return $this->SqlGetPreparedLines($id);
+		}
+
+		/**
+		 * Legt einen Datensatz neu an oder aktualisiert einen Datensatz. Ist im
+		 * übergebenen Daten-Array eine ID enthalten, dessen Spaltenname über die
+		 * Variable $columnId definiert ist, so wird der Datensatz mit dieser ID
+		 * aktualisiert. Ansonsten wird dieser neu angelegt.
+		 *
+		 * @param array $data Die Daten, die gespeichert werden sollen.
+		 * @return array|FALSE
+		 */
+		public function save( array $data ) {
+			if(array_key_exists($this->columnId, $data) ) {
+			$result = $this->getById($data[$this->columnId]);
+			if( $result === FALSE ) {
+				return FALSE;
+			} 
+			return $this->update($data);
+			} else {
+			return $this->create($data);
+			}
+		}
+
+		/**
+		 * Legt einen neuen Datensatz an.
+		 *
+		 * @param array $data Die Daten des Datensatzes, der angelegt werden soll.
+		 * @return array|FALSE Die Daten des angelegten Datensatzes oder FALSE 
+		 *                     im Fehlerfall
+		 */
+		public function create( $data ) {
+
+			$columnString = "";
+			$valueString = "";
+			foreach( array_keys($data) as $column ) {
+			$columnString .= ( empty($columnString) ? $column    : ", $column" );
+			$valueString  .= ( empty($valueString)  ? ":$column" : ", :$column" );
+			}
+			$query = "INSERT INTO $this->table ($columnString) VALUES ($valueString)";
+			$this->SqlPrepareStatement($query, $this->fetch);
+
+			foreach( $data as $column=>$value ) {
+			$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
+			}
+
+			if( $this->SqlGetPreparedLines() !== FALSE ) {
+			return $this->getById($this->SqlGetLastInsertId());
+			} else {
+			return FALSE;
+			}
+		}
+
+		/**
+		 * Aktualisiert einen Datensatz anhand der ID.
+		 *
+		 * @param array $data Die Daten des Datensatzes, der aktualisiert werden
+		 *					  soll, samt ID.
+		 * @return array|FALSE Die Daten des angelegten Datensatzes oder FALSE 
+		 *                     im Fehlerfall
+		 */
+		public function update( $data ) {
+
+			if( empty($data[$this->columnId]) ) {
+			return FALSE;
+			}
+
+			$updateString = "";
+			foreach( $data as $column=>$value ) {
+			if( $column === $this->columnId ) continue;
+			$updateString .= ( empty($updateString) ? "" : ", ")."$column=:$column";
+			} 
+			$query = "UPDATE $this->table SET $updateString WHERE $this->columnId=:$this->columnId";
+			$this->SqlPrepareStatement($query, $this->fetch);
+
+			foreach( $data as $column=>$value ) {
+			$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
+			}
+
+			if( $this->SqlGetPreparedLines() !== FALSE ) {
+			return $this->getById($data[$this->columnId]);
+			} else {
+			return FALSE;
+			}
+		}
+
+		/**
+		 * Löscht einen Datensatz anhand seiner ID. Wir ein leerer Wert als ID 
+		 * übergeben, wird als Sicherheit FALSE zurückgegeben, da sonst die ge-
+		 * samte Tabelle gelöscht würde.
+		 *
+		 * @param array $id	ID des Datensatzes, der gelöscht werden soll.
+		 * @return array|FALSE
+		 */
+		public function delete( $id ) {
+			if( empty($id) || !$this->isUnique(["$this->columnId"=>$id]) ) {
+			return FALSE;
+			}
+			$query = "DELETE FROM $this->table WHERE $this->columnId=?";
+			$this->SqlPrepareStatement($query, $this->fetch);
+			if( $this->SqlGetPreparedLines($id) !== FALSE ) {
+			if( $this->getById($id) === NULL ) {
+				return TRUE;
+			}
+			}
+			return FALSE;
+		}
+
+		/**
+		 * Löscht alle Datensätze aus der Tabelle und setzt alle Sequenzen aus 
+		 * dieser zurück. Das bedeuted, dass z.B. AUTO-INCREMENT-Spalten wieder
+		 * mit dem Index 1 beginnen.
+		 *
+		 * @return boolean
+		 */
+		public function deleteAll() {
+			if( $this->SqlExecute("DELETE FROM $this->table") === FALSE ) {
+			return FALSE;
+			}
+			return $this->removeSequences();
+		}
+
+		/**
+		 * Setzt den Namen der ID-Spalte aus der Tabelle. Diese wird für die 
+		 * Abfragen aus dieser Klasse verwendet. Standard ist hier "id".
+		 *
+		 * @param string $column Name der ID-Spalte aus der Tabelle.
+		 * @return array|FALSE
+		 */
+		public function setColumnId( $column ) {
+			$this->columnId = $column;
+		}
+
+		/**
+		 * Setzt alle Sequenzen der Tabelle zurück. Dadurch beginnt der Index der
+		 * AUTO-INCREMENT-Sequenzen wieder bei 1.
+		 *
+		 * @return array|FALSE
+		 */
+		private function removeSequences() {
+			$query = "DELETE FROM sqlite_sequence WHERE name='$this->table'";
+			return $this->SqlExecute($query);
+		}
+
+		/**
+		 * Ermittelt den PDO-Datentyp einer Variable. Dieser Datentyp ist wichtig
+		 * beim Einsatz von Prepared-Statements.
+		 *
+		 * @param mixed $param Parameter, dessen Datentyp ermittelt werdens soll.
+		 * @return array|FALSE
+		 */
+		private function getPDOType( $param ) {
+			return is_integer($param) ? \PDO::PARAM_INT : \PDO::PARAM_STR;
+		}
     } 
 
     /****************************************************************************
@@ -600,7 +586,7 @@
 				    // Nur DSN
 				    else
 				    {
-					    $this->_DatabaseObject = new PDO ($Dsn);
+					    $this->_DatabaseObject = new \PDO ($Dsn);
 				    }
 			    }
 			    catch (PDOException $e)
@@ -630,7 +616,7 @@
 
 			    if ($bResult === TRUE && $Timeout > -1)
 			    {
-				    $this->_DatabaseObject->setAttribute(PDO::ATTR_TIMEOUT, $Timeout);
+				    $this->_DatabaseObject->setAttribute(\PDO::ATTR_TIMEOUT, $Timeout);
 			    }
 
 			    return $bResult;
@@ -654,7 +640,7 @@
 
 			    if ($bResult === TRUE && $Timeout > -1)
 			    {
-				    $this->_DatabaseObject->setAttribute(PDO::ATTR_TIMEOUT, $Timeout);
+				    $this->_DatabaseObject->setAttribute(\PDO::ATTR_TIMEOUT, $Timeout);
 			    }
 
 			    return $bResult;
@@ -701,7 +687,7 @@
 			    if (version_compare(PHP_VERSION, '5.3.6') < 0)
 			    {
 				    $arrOptions = array (
-					    PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8');
+					    \PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8');
 			    }
 			    // PHP-Versio >= 5.3.6
 			    else
@@ -713,7 +699,7 @@
 
 			    if ($bResult === TRUE && $Timeout > -1)
 			    {
-				    $this->_DatabaseObject->setAttribute(PDO::ATTR_TIMEOUT, $Timeout);
+				    $this->_DatabaseObject->setAttribute(\PDO::ATTR_TIMEOUT, $Timeout);
 			    }
 
 			    return $bResult;
@@ -758,7 +744,7 @@
 
 			    if ($bResult === TRUE && $Timeout > -1)
 			    {
-				    $this->_DatabaseObject->setAttribute(PDO::ATTR_TIMEOUT, $Timeout);
+				    $this->_DatabaseObject->setAttribute(\PDO::ATTR_TIMEOUT, $Timeout);
 			    }
 
 			    return $bResult;
@@ -802,7 +788,7 @@
 			    try
 			    {
 				    $dbType =  
-					    $this->_DatabaseObject->getAttribute(PDO::ATTR_DRIVER_NAME);
+					    $this->_DatabaseObject->getAttribute(\PDO::ATTR_DRIVER_NAME);
 			    }
 			    catch (PDOException $e)
 			    {
@@ -1211,7 +1197,7 @@
 		     ************************************************************************/
 		    public function SqlBindPreparedValue ($Parameter, $Value, 
 			    $DataType = PDO::PARAM_STR)
-		    {
+		    { 
 			    $bResult = FALSE;
 
 			    try
@@ -1328,7 +1314,7 @@
 		     * @return Ergebnis der Abfrage als Array, NULL falls kein Ergebnis
 		     *         gefunden wurde oder FALSE im Fehlerfall
 		     *********************************************************************/
-		    public function SqlGetLines ($SqlQuery, $FetchMethod = PDO::FETCH_BOTH)
+		    public function SqlGetLines ($SqlQuery, $FetchMethod = \PDO::FETCH_BOTH)
 		    {
 			    $resultReturn = $this->sqlGetPDOObject($SqlQuery, $FetchMethod);
 
@@ -1367,7 +1353,7 @@
 		     *         nisspalten als zugreifbare Klassenattribute darstellen oder 
 		     *         FALSE im Fehlerfall
 		     *********************************************************************/
-		    public function SqlGetLinesAsObject ($SqlQuery, $FetchMethod = PDO::FETCH_BOTH)
+		    public function SqlGetLinesAsObject ($SqlQuery, $FetchMethod = \PDO::FETCH_BOTH)
 		    {
 			    $arrResult = $this->SqlGetLines($SqlQuery, $FetchMethod);
 

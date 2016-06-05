@@ -13,7 +13,7 @@
 		 * Tabellennamen des Objekts in der Datenbank
 		 * @var string
 		 */
-		private $table;
+		protected $table;
 
 		/**
 		 * Die Spalte des Primary-Keys der Tabelle
@@ -47,7 +47,7 @@
 		 *							  Tabelle zuzugreifen)
 		 *							  In diesem Fall wäre $TablePrefix='user1_' zu setzen.
 		 */
-		public function __construct( $table, $printSql = FALSE, $tablePrefix = "" ) {
+		public function __construct( $table="", $printSql = FALSE, $tablePrefix = "" ) {
 			parent::__construct($printSql, $tablePrefix);
 			$this->table = $table;
 		}
@@ -310,6 +310,8 @@
 		private function getPDOType( $param ) {
 			return is_integer($param) ? \PDO::PARAM_INT : \PDO::PARAM_STR;
 		}
+		
+		public function getTable() { return $this->table; }
     } 
 
     /****************************************************************************
@@ -491,7 +493,7 @@
 	     * @return Ergebnis der Abfrage als weiterverarbeitbares PDOObject oder
 	     *         FALSE im Fehlerfall
 	     ************************************************************************/
-	    private function sqlGetPDOObject ($SqlQuery, $FetchMethod = PDO::FETCH_BOTH)
+	    private function sqlGetPDOObject ($SqlQuery, $FetchMethod = \PDO::FETCH_BOTH)
 	    {
 		    $this->_LastErrorMessage = '';
 		    $resultReturn = FALSE;
@@ -1552,8 +1554,8 @@
 
 			    if (($this->_PDOStatement = $this->sqlGetPDOObject($SqlQuery)) !== FALSE)
 			    {
-				    if (($returnMixed = $this->_PDOStatement->fetch(PDO::FETCH_BOTH, 
-					    PDO::FETCH_ORI_FIRST)) !== FALSE)
+				    if (($returnMixed = $this->_PDOStatement->fetch(\PDO::FETCH_BOTH, 
+					    \PDO::FETCH_ORI_FIRST)) !== FALSE)
 				    {
 					    return $returnMixed;
 				    }

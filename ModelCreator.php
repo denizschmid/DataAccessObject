@@ -56,7 +56,7 @@
 			$sql = $result[0]["sql"];
 			$r = preg_match("/\(\s*(\S+)[^,)]*/", $sql, $m, PREG_OFFSET_CAPTURE) ;
 			while ($r) {
-				array_push( $colnames, $m[1][0] ) ;
+				array_push( $colnames, str_replace("'", "", $m[1][0]) ) ;
 				$r = preg_match("/,\s*(\S+)[^,)]*/", $sql, $m, PREG_OFFSET_CAPTURE, $m[0][1] + strlen($m[0][0]) ) ;
 			}
 			return $colnames;
@@ -96,6 +96,9 @@
 				$members .= "\n\t\tpublic function get".ucfirst($column)."() {\n";
 				$members .= "\t\t\treturn \$this->$column;\n";
 				$members .= "\t\t}\n";
+				$members .= "\n\t\tpublic function set".ucfirst($column)."( \$$column ) {\n";
+				$members .= "\t\t\t\$this->$column = \$$column;\n";
+				$members .= "\t\t}\n";
 			}
 			$template = str_replace("#[GETTERSETTER]#", $members, $template);
 			return $template;
@@ -115,20 +118,31 @@
 
 	class #[CLASS]#Model #[EXTENDS]# {
 
-		private \$_fromDatabaseTable;
+		//private \$_fromDatabaseTable;
 #[MEMBERS]#	
 		public function __construct( \$data=[] ) {
 			\$this->_fromDatabaseTable = "#[TABLE]#";
-			\$this->createFromArray(\$data);
+			\$this->fromArray(\$data);
 		}
 			
-		private function createFromArray( \$data ) {
+		public function fromArray( \$data ) {
 			\$reflect = new \\ReflectionClass(\$this);
-			\$properties = \$reflect->getProperties(\\ReflectionProperty::IS_PRIVATE);
+			\$properties = \$reflect->getProperties();
 			foreach( \$properties as \$member ) {
 				if( !array_key_exists(\$member->name, \$data) ) continue;
 				\$this->{\$member->name} = \$data[\$member->name];
 			}
+		}
+			
+		public function toArray( array \$exclude=[] ) {
+			\$reflect = new \\ReflectionClass(\$this);
+			\$properties = \$reflect->getProperties();
+			\$data = [];
+			foreach( \$properties as \$member ) {
+				if( in_array(\$member->name, \$exclude) ) continue;
+				\$data[\$member->name] = \$this->{\$member->name};
+			}
+			return \$data;
 		}
 			
 #[GETTERSETTER]#

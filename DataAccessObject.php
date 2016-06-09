@@ -102,6 +102,23 @@
 		}
 
 		/**
+		 * Ermittelt den 1. Datensatz.
+		 *
+		 * @param array	$data Die Daten, nach denen gefiltert werden soll.
+		 * @param string $order	Die Sortierung der Tabelle.
+		 * @param integer $limit Anzahl der Datensätze, die ermittelt werden 
+		 *						 sollen
+		 * @return boolean|FALSE
+		 */
+		public function findFirst( $data ) {
+			$data = $this->find($data);
+			if( sizeof($data) < 1 ) {
+				return FALSE;
+			}
+			return $data[0];
+		}
+		
+		/**
 		 * Sucht Datensätze nach Suchkriterien.
 		 *
 		 * @param array	$data Die Daten, nach denen gefiltert werden soll.
@@ -156,7 +173,11 @@
 		 */
 		public function getById( $id ) {
 			$this->SqlPrepareStatement("SELECT * FROM $this->table WHERE id=?", $this->fetch);
-			return $this->SqlGetPreparedLines($id);
+			$data = $this->SqlGetPreparedLines($id);
+			if( sizeof($data) !== 1) {
+				return FALSE;
+			}
+			return $data[0];
 		}
 
 		/**
@@ -312,6 +333,7 @@
 		}
 		
 		public function getTable() { return $this->table; }
+		public function setTable( $table ) { $this->table = $table; }
     } 
 
     /****************************************************************************

@@ -47,9 +47,13 @@
 		 *							  Tabelle zuzugreifen)
 		 *							  In diesem Fall wäre $TablePrefix='user1_' zu setzen.
 		 */
-		public function __construct( $table="", $printSql = FALSE, $tablePrefix = "" ) {
+		public function __construct( $table, $printSql = FALSE, $tablePrefix = "" ) {
 			parent::__construct($printSql, $tablePrefix);
 			$this->table = $table;
+		}
+		
+		protected function _joinDefinition() {
+			return "";
 		}
 
 		/**
@@ -105,15 +109,14 @@
 		 * Ermittelt den 1. Datensatz.
 		 *
 		 * @param array	$data Die Daten, nach denen gefiltert werden soll.
-		 * @param string $order	Die Sortierung der Tabelle.
-		 * @param integer $limit Anzahl der Datensätze, die ermittelt werden 
-		 *						 sollen
 		 * @return boolean|FALSE
 		 */
 		public function findFirst( $data ) {
 			$data = $this->find($data);
-			if( sizeof($data) < 1 ) {
+			if( $data === FALSE ) {
 				return FALSE;
+			} else if( sizeof($data) < 1 ) {
+				return [];
 			}
 			return $data[0];
 		}
@@ -143,26 +146,30 @@
 		 *						 werden
 		 * @return array|FALSE
 		 */
-		public function findPage( $data, $order="", $limit=-1, $start=0 ) {
-
+		public function findPage( $data, $order="", $limit=-1, $start=0, $extended=false ) {
+			
 			$whereString = "";
 			foreach( array_keys($data) as $column ) {
-			$whereString .= ( empty($whereString) ? "WHERE " : " AND " )."$column=:$column";
+				$whereString .= ( empty($whereString) ? "WHERE " : " AND " )."$column=:$column";
 			}
-
+			
 			$orderString = "";
 			if( !empty($order) ) {
-			$orderString = "ORDER BY $order";
+				$orderString = "ORDER BY $order";
 			}
-
-			$query = "SELECT * FROM $this->table $whereString $orderString LIMIT $limit OFFSET $start";
+			
+			$joinString = $extended ? $this->_joinDefinition() : "";
+			
+			$query = "SELECT * FROM $this->table $joinString $whereString $orderString LIMIT $limit OFFSET $start";
 			$this->SqlPrepareStatement($query, $this->fetch);
-
 			foreach( $data as $column=>$value ) {
-			$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
+				$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
 			}
-
-			return $this->SqlGetPreparedLines();
+			
+			if( ($result = $this->SqlGetPreparedLines()) === null ) {
+				return [];
+			}
+			return $result;
 		}
 
 		/**
@@ -171,8 +178,9 @@
 		 * @param integer $id ID des Datensatzes
 		 * @return array|FALSE
 		 */
-		public function getById( $id ) {
-			$this->SqlPrepareStatement("SELECT * FROM $this->table WHERE id=?", $this->fetch);
+		public function getById( $id, $extended=false ) {
+			$joinString = $extended ? $this->_joinDefinition() : "";
+			$this->SqlPrepareStatement("SELECT * FROM $this->table $joinString WHERE $this->table.$this->columnId=?", $this->fetch);
 			$data = $this->SqlGetPreparedLines($id);
 			if( sizeof($data) !== 1) {
 				return FALSE;
@@ -191,14 +199,12 @@
 		 */
 		public function save( array $data ) {
 			if(array_key_exists($this->columnId, $data) ) {
-			$result = $this->getById($data[$this->columnId]);
-			if( $result === FALSE ) {
-				return FALSE;
-			} 
-			return $this->update($data);
-			} else {
-			return $this->create($data);
+				$result = $this->getById($data[$this->columnId]);
+				if( $result !== FALSE ) {
+					return $this->update($data);
+				}
 			}
+			return $this->create($data);
 		}
 
 		/**
@@ -209,24 +215,29 @@
 		 *                     im Fehlerfall
 		 */
 		public function create( $data ) {
-
+			
+			// Prüfe Parameter, damit kein "FATAL ERROR" beim Binding entsteht
+			if( !$this->checkBindingParameters($data) ) {
+				return FALSE;
+			}
+			
 			$columnString = "";
 			$valueString = "";
 			foreach( array_keys($data) as $column ) {
-			$columnString .= ( empty($columnString) ? $column    : ", $column" );
-			$valueString  .= ( empty($valueString)  ? ":$column" : ", :$column" );
+				$columnString .= ( empty($columnString) ? $column    : ", $column" );
+				$valueString  .= ( empty($valueString)  ? ":$column" : ", :$column" );
 			}
 			$query = "INSERT INTO $this->table ($columnString) VALUES ($valueString)";
 			$this->SqlPrepareStatement($query, $this->fetch);
 
 			foreach( $data as $column=>$value ) {
-			$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
+				$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
 			}
-
+			
 			if( $this->SqlGetPreparedLines() !== FALSE ) {
-			return $this->getById($this->SqlGetLastInsertId());
+				return $this->getById($this->SqlGetLastInsertId());
 			} else {
-			return FALSE;
+				return FALSE;
 			}
 		}
 
@@ -239,27 +250,28 @@
 		 *                     im Fehlerfall
 		 */
 		public function update( $data ) {
-
-			if( empty($data[$this->columnId]) ) {
-			return FALSE;
+			
+			// Prüfe Parameter, damit kein "FATAL ERROR" beim Binding entsteht
+			if( !$this->checkBindingParameters($data) || empty($data[$this->columnId]) ) {
+				return FALSE;
 			}
-
+			
 			$updateString = "";
 			foreach( $data as $column=>$value ) {
-			if( $column === $this->columnId ) continue;
-			$updateString .= ( empty($updateString) ? "" : ", ")."$column=:$column";
+				if( $column === $this->columnId ) continue;
+				$updateString .= ( empty($updateString) ? "" : ", ")."$column=:$column";
 			} 
 			$query = "UPDATE $this->table SET $updateString WHERE $this->columnId=:$this->columnId";
 			$this->SqlPrepareStatement($query, $this->fetch);
 
 			foreach( $data as $column=>$value ) {
-			$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
+				$this->SqlBindPreparedValue(":$column", $value, $this->getPDOType($value));
 			}
 
 			if( $this->SqlGetPreparedLines() !== FALSE ) {
-			return $this->getById($data[$this->columnId]);
+				return $this->getById($data[$this->columnId]);
 			} else {
-			return FALSE;
+				return FALSE;
 			}
 		}
 
@@ -309,6 +321,31 @@
 		public function setColumnId( $column ) {
 			$this->columnId = $column;
 		}
+		
+		/**
+		 * Ermittelt die Spalten-Metadaten einer Tabelle.
+		 * @return array
+		 */
+		public function getTableColumns() {
+			return $this->SqlGetLines("PRAGMA table_info($this->table)");
+		}
+		
+		/**
+		 * Prüft, ob die Eingangsdaten (assoziatives Array) dem Tabellenschema
+		 * entsprechen. Es wird abgegelichen, ob die eingehenden Keys als Tabellen-
+		 * spalte enthalten sind.
+		 * @param array $params
+		 * @return boolean
+		 */
+		public function checkBindingParameters( $params ) {
+			$columns = array_column($this->getTableColumns(), "name");
+			foreach( array_keys($params) as $key ) {
+				if( !in_array($key, $columns) ) {
+					return false;
+				}
+			} 
+			return true;
+		}
 
 		/**
 		 * Setzt alle Sequenzen der Tabelle zurück. Dadurch beginnt der Index der
@@ -332,8 +369,14 @@
 			return is_integer($param) ? \PDO::PARAM_INT : \PDO::PARAM_STR;
 		}
 		
-		public function getTable() { return $this->table; }
-		public function setTable( $table ) { $this->table = $table; }
+		/**
+		 * Setzt den Tabellennamen, auf der die Queries ausgeführt werden.
+		 * @return string
+		 */
+		public function getTable() { 
+			return $this->table;
+		}
+		
     } 
 
     /****************************************************************************
@@ -1576,7 +1619,7 @@
 
 			    if (($this->_PDOStatement = $this->sqlGetPDOObject($SqlQuery)) !== FALSE)
 			    {
-				    if (($returnMixed = $this->_PDOStatement->fetch(\PDO::FETCH_BOTH, 
+				    if (($returnMixed = $this->_PDOStatement->fetch(\PDO::FETCH_ASSOC, 
 					    \PDO::FETCH_ORI_FIRST)) !== FALSE)
 				    {
 					    return $returnMixed;

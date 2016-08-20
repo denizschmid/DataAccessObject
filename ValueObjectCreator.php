@@ -4,7 +4,7 @@
 
 	require_once "DataAccessObject.php";
 
-	class ModelCreator {
+	class ValueObjectCreator {
 		
 		private $connection;
 		private $directory;
@@ -116,11 +116,11 @@
 	#[NAMESPACE]#
 	#[REQUIRE]#
 
-	class #[CLASS]#Model #[EXTENDS]# {
+	class #[CLASS]#Model extends ValueObject /*#[EXTENDS]#*/ {
 
 		//private \$_fromDatabaseTable;
 #[MEMBERS]#	
-		public function __construct( \$data=[] ) {
+		/*public function __construct( \$data=[] ) {
 			\$this->_fromDatabaseTable = "#[TABLE]#";
 			\$this->fromArray(\$data);
 		}
@@ -143,7 +143,7 @@
 				\$data[\$member->name] = \$this->{\$member->name};
 			}
 			return \$data;
-		}
+		}*/
 			
 #[GETTERSETTER]#
 			

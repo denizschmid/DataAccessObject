@@ -52,6 +52,15 @@
 			$this->table = $table;
 		}
 		
+		/**
+		 * Ändert die Tabellenverknüpfung der Verbindung. Alle Abfragen laufen
+		 * über den neuen Tabellennamen.
+		 * @param string $table
+		 */
+		public function setTable( $table ) {
+			$this->table = $table;
+		}
+		
 		protected function _joinDefinition() {
 			return "";
 		}

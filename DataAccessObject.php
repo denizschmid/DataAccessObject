@@ -125,7 +125,7 @@
 			if( $data === FALSE ) {
 				return FALSE;
 			} else if( sizeof($data) < 1 ) {
-				return [];
+				return NULL;
 			}
 			return $data[0];
 		}
